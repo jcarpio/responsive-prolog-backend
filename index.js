@@ -18,8 +18,6 @@ app.post('/run', (req, res) => {
   }
 
   const wrappedCode = `
-:- use_module(library(clpfd)).
-  
 ${facts}
 
 main :- (${query}), writeln(${detectMainVar(query)}), fail.
