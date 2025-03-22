@@ -1,21 +1,22 @@
-# Imagen base con Node
+# Usa una imagen base oficial de Node.js
 FROM node:20
 
-# Instalamos SWI-Prolog
+# Instala SWI-Prolog
 RUN apt-get update && \
     apt-get install -y swi-prolog && \
-    apt-get clean
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Creamos directorio de trabajo
+# Crea el directorio de trabajo
 WORKDIR /app
 
-# Copiamos el código
+# Copia todos los archivos al contenedor
 COPY . .
 
-# Instalamos dependencias
+# Instala las dependencias
 RUN npm install
 
-# Exponemos el puerto
+# Expone el puerto
 EXPOSE 3000
 
 # Comando para arrancar la app
