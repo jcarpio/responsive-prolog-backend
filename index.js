@@ -1,81 +1,50 @@
-import { useState } from "react";
-import 'bootstrap/dist/css/bootstrap.min.css';
+import express from 'express';
+import cors from 'cors';
+import { exec } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 
-export default function PrologMobile() {
-  const [facts, setFacts] = useState(`padre(juan, maria).
-padre(juan, pedro).
-padre(pedro, luis).
-abuelo(X, Y) :- padre(X, Z), padre(Z, Y).`);
-  const [query, setQuery] = useState("abuelo(X, luis).");
-  const [output, setOutput] = useState("");
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-  const handleRun = async () => {
-    setOutput("⏳ Ejecutando...");
+app.use(cors());
+app.use(express.json());
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 segundos
+app.post('/run', (req, res) => {
+  const { facts = '', query } = req.body;
 
-    try {
-      const response = await fetch("https://responsive-prolog-backend.onrender.com/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ facts, query }),
-        signal: controller.signal
-      });
+  if (!query) {
+    return res.status(400).json({ error: 'No Prolog query provided' });
+  }
 
-      clearTimeout(timeoutId);
+  const wrappedCode = `
+${facts}
 
-      const data = await response.json();
-      if (data.output) setOutput(data.output);
-      else setOutput("⚠️ Error: " + (data.error || "Desconocido"));
-    } catch (err) {
-      if (err.name === 'AbortError') {
-        setOutput("⏱️ Tiempo de espera agotado (5s). La consulta tardó demasiado.");
-      } else {
-        setOutput("⚠️ Error de red: " + err.message);
-      }
+main :- (${query}), writeln(${detectMainVar(query)}), fail.
+:- main, halt.
+`;
+
+  const filePath = path.join('/tmp', `query_${Date.now()}.pl`);
+  fs.writeFileSync(filePath, wrappedCode);
+
+  exec(`swipl -q -f ${filePath}`, { timeout: 5000 }, (err, stdout, stderr) => {
+    fs.unlinkSync(filePath);
+    if (err) {
+      return res.status(500).json({ error: stderr || err.message });
     }
-  };
+    return res.json({ output: stdout });
+  });
+});
 
-  return (
-    <div className="container py-4">
-      <h1 className="text-center mb-4">🧠 Prolog Online</h1>
+app.get('/', (req, res) => {
+  res.send('Responsive Prolog Backend is running.');
+});
 
-      <div className="mb-4">
-        <label className="form-label fw-bold">🔧 Base de conocimiento:</label>
-        <textarea
-          className="form-control"
-          style={{ height: '200px' }}
-          value={facts}
-          onChange={(e) => setFacts(e.target.value)}
-        />
-      </div>
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
 
-      <div className="mb-4">
-        <label className="form-label fw-bold">❓ Consulta:</label>
-        <textarea
-          className="form-control"
-          style={{ height: '100px' }}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-      </div>
-
-      <div className="text-center mb-4">
-        <button
-          onClick={handleRun}
-          className="btn btn-primary btn-lg"
-        >
-          ▶️ Ejecutar
-        </button>
-      </div>
-
-      <div>
-        <label className="form-label fw-bold">📤 Resultado:</label>
-        <pre className="form-control bg-dark text-success" style={{ height: '200px', overflow: 'auto' }}>
-          {output || "(salida vacía)"}
-        </pre>
-      </div>
-    </div>
-  );
+function detectMainVar(code) {
+  const match = code.match(/\b([A-Z_][A-Za-z0-9_]*)\b/);
+  return match ? match[1] : '"✅ Consulta sin variables."';
 }
