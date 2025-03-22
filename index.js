@@ -10,6 +10,15 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+function cleanQuery(q) {
+  return q.trim().replace(/\.$/, '');
+}
+
+function detectMainVar(code) {
+  const match = code.match(/\b([A-Z_][A-Za-z0-9_]*)\b/);
+  return match ? match[1] : '"✅ Consulta sin variables."';
+}
+
 app.post('/run', (req, res) => {
   const { facts = '', query } = req.body;
 
@@ -18,9 +27,11 @@ app.post('/run', (req, res) => {
   }
 
   const wrappedCode = `
+:- use_module(library(clpfd)).
+
 ${facts}
 
-main :- (${query}), writeln(${detectMainVar(query)}), fail.
+main :- (${cleanQuery(query)}), writeln(${detectMainVar(query)}), fail.
 :- main, halt.
 `;
 
@@ -29,22 +40,23 @@ main :- (${query}), writeln(${detectMainVar(query)}), fail.
 
   exec(`swipl -q -f ${filePath}`, { timeout: 5000 }, (err, stdout, stderr) => {
     fs.unlinkSync(filePath);
+
     if (err) {
       return res.status(500).json({ error: stderr || err.message });
     }
+
+    if (!stdout.trim()) {
+      return res.json({ output: "⚠️ La consulta no produjo ningún resultado." });
+    }
+
     return res.json({ output: stdout });
   });
 });
 
 app.get('/', (req, res) => {
-  res.send('Responsive Prolog Backend is running.');
+  res.send('✅ Responsive Prolog Backend is running.');
 });
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
-
-function detectMainVar(code) {
-  const match = code.match(/\b([A-Z_][A-Za-z0-9_]*)\b/);
-  return match ? match[1] : '"✅ Consulta sin variables."';
-}
