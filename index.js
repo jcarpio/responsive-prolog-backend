@@ -16,7 +16,7 @@ function cleanQuery(q) {
 
 function detectMainVar(code) {
   const match = code.match(/\b([A-Z_][A-Za-z0-9_]*)\b/);
-  return match ? match[1] : '"✅ Consulta sin variables."';
+  return match ? match[1] : 'true'; // Default para writeln
 }
 
 app.post('/run', (req, res) => {
@@ -31,7 +31,7 @@ app.post('/run', (req, res) => {
 
 ${facts}
 
-main :- (${cleanQuery(query)}), writeln(${detectMainVar(query)}), fail.
+main :- catch( ( ${cleanQuery(query)}, writeln(${detectMainVar(query)}), fail ), E, (writeln(E)) ).
 :- main, halt.
 `;
 
@@ -41,7 +41,7 @@ main :- (${cleanQuery(query)}), writeln(${detectMainVar(query)}), fail.
   exec(`swipl -q -f ${filePath}`, { timeout: 5000 }, (err, stdout, stderr) => {
     fs.unlinkSync(filePath);
 
-    if (err) {
+    if (err && !stdout.trim()) {
       return res.status(500).json({ error: stderr || err.message });
     }
 
