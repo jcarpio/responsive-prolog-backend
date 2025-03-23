@@ -23,26 +23,24 @@ app.post('/run', (req, res) => {
 
   const cleanedQuery = cleanQuery(query);
 
-  const wrappedCode = `
+const wrappedCode = `
 :- use_module(library(clpfd)).
 
 ${facts}
 
 print_vars(Query) :-
-    term_variables(Query, Vars),
-    call(Query),
-    print_var_bindings(Vars),
+    copy_term(Query, Copy, Bindings),
+    call(Copy),
+    print_bindings(Bindings),
     nl,
     fail.
 print_vars(_).
 
-print_var_bindings([]).
-print_var_bindings([V|Vs]) :-
-    copy_term(V, CopyV),
-    numbervars(CopyV, 0, _),
-    format("~w = ~w", [V, CopyV]),
-    (Vs \= [] -> write(', ') ; true),
-    print_var_bindings(Vs).
+print_bindings([]).
+print_bindings([Name=Value|Rest]) :-
+    format("~w = ~w", [Name, Value]),
+    (Rest \= [] -> write(', ') ; true),
+    print_bindings(Rest).
 
 main :- catch(print_vars(${cleanedQuery}), E, (writeln(E))).
 :- main, halt.
