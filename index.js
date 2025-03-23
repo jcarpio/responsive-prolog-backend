@@ -14,6 +14,11 @@ function cleanQuery(q) {
   return q.trim().replace(/\.$/, '');
 }
 
+function detectMainVar(code) {
+  const match = code.match(/\b([A-Z_][A-Za-z0-9_]*)\b/);
+  return match ? match[1] : 'true'; // Default para writeln
+}
+
 app.post('/run', (req, res) => {
   const { facts = '', query } = req.body;
 
@@ -21,31 +26,13 @@ app.post('/run', (req, res) => {
     return res.status(400).json({ error: 'No Prolog query provided' });
   }
 
-  const cleanedQuery = cleanQuery(query);
-
   const wrappedCode = `
 :- use_module(library(clpfd)).
 
 ${facts}
 
-main :-
-    catch(run_query, E, (writeln('⚠️ Error en la consulta:'), writeln(E))),
-    halt.
-
-run_query :-
-    Query = (${cleanedQuery}),
-    copy_term(Query, Copy, Bindings),
-    call(Copy),
-    print_bindings(Bindings),
-    fail.
-run_query.
-
-print_bindings([]).
-print_bindings([Name=Value|Rest]) :-
-    format("~w = ~w", [Name, Value]),
-    (Rest \= [] -> write(', ') ; true),
-    nl,
-    print_bindings(Rest).
+main :- catch( ( ${cleanQuery(query)}, writeln(${detectMainVar(query)}), fail ), E, (writeln(E)) ).
+:- main, halt.
 `;
 
   const filePath = path.join('/tmp', `query_${Date.now()}.pl`);
@@ -53,12 +40,6 @@ print_bindings([Name=Value|Rest]) :-
 
   exec(`swipl -q -f ${filePath}`, { timeout: 5000 }, (err, stdout, stderr) => {
     fs.unlinkSync(filePath);
-
-    const goalFailedPattern = /Goal \(directive\) failed: user:\(main,halt\)/;
-
-    if (goalFailedPattern.test(stderr)) {
-      return res.json({ output: "false." });
-    }
 
     if (err && !stdout.trim()) {
       return res.status(500).json({ error: stderr || err.message });
@@ -68,7 +49,7 @@ print_bindings([Name=Value|Rest]) :-
       return res.json({ output: "⚠️ La consulta no produjo ningún resultado." });
     }
 
-    return res.json({ output: stdout.trim() });
+    return res.json({ output: stdout });
   });
 });
 
