@@ -14,11 +14,6 @@ function cleanQuery(q) {
   return q.trim().replace(/\.$/, '');
 }
 
-function detectMainVar(code) {
-  const match = code.match(/\b([A-Z_][A-Za-z0-9_]*)\b/);
-  return match ? match[1] : 'true'; // Default para writeln
-}
-
 app.post('/run', (req, res) => {
   const { facts = '', query } = req.body;
 
@@ -26,19 +21,37 @@ app.post('/run', (req, res) => {
     return res.status(400).json({ error: 'No Prolog query provided' });
   }
 
+  const cleanedQuery = cleanQuery(query);
+
   const wrappedCode = `
 :- use_module(library(clpfd)).
 
 ${facts}
 
-main :- catch( ( ${cleanQuery(query)}, writeln(${detectMainVar(query)}), fail ), E, (writeln(E)) ).
+print_vars(Query) :-
+    term_variables(Query, Vars),
+    call(Query),
+    print_var_bindings(Vars),
+    nl,
+    fail.
+print_vars(_).
+
+print_var_bindings([]).
+print_var_bindings([V|Vs]) :-
+    copy_term(V, CopyV),
+    numbervars(CopyV, 0, _),
+    format("~w = ~w", [V, CopyV]),
+    (Vs \= [] -> write(', ') ; true),
+    print_var_bindings(Vs).
+
+main :- catch(print_vars(${cleanedQuery}), E, (writeln(E))).
 :- main, halt.
 `;
 
   const filePath = path.join('/tmp', `query_${Date.now()}.pl`);
   fs.writeFileSync(filePath, wrappedCode);
 
-  exec(`swipl -q -f ${filePath}`, { timeout: 15000 }, (err, stdout, stderr) => {
+  exec(`swipl -q -f ${filePath}`, { timeout: 5000 }, (err, stdout, stderr) => {
     fs.unlinkSync(filePath);
 
     const goalFailedPattern = /Goal \(directive\) failed: user:\(main,halt\)/;
@@ -55,7 +68,7 @@ main :- catch( ( ${cleanQuery(query)}, writeln(${detectMainVar(query)}), fail ),
       return res.json({ output: "⚠️ La consulta no produjo ningún resultado." });
     }
 
-    return res.json({ output: stdout });
+    return res.json({ output: stdout.trim() });
   });
 });
 
