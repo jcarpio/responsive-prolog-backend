@@ -29,18 +29,13 @@ const wrappedCode = `
 ${facts}
 
 print_vars(Query) :-
-    copy_term(Query, Copy, Bindings),
+    copy_term(Query, Copy),
     call(Copy),
-    print_bindings(Bindings),
+    numbervars(Copy, 0, _),
+    write_term(Copy, [quoted(true)]),
     nl,
     fail.
 print_vars(_).
-
-print_bindings([]).
-print_bindings([Name=Value|Rest]) :-
-    format("~w = ~w", [Name, Value]),
-    (Rest \= [] -> write(', ') ; true),
-    print_bindings(Rest).
 
 main :- catch(print_vars(${cleanedQuery}), E, (writeln(E))).
 :- main, halt.
