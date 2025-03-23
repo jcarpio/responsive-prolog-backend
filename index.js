@@ -23,23 +23,26 @@ app.post('/run', (req, res) => {
 
   const cleanedQuery = cleanQuery(query);
 
-const wrappedCode = `
+  const wrappedCode = `
 :- use_module(library(clpfd)).
 
 ${facts}
 
 main :-
-    ( ${cleanedQuery} ->
-        term_variables(${cleanedQuery}, Vars),
-        print_bindings(Vars)
-    ; writeln(false)
-    ),
+    catch(run_query, E, (writeln('⚠️ Error en la consulta:'), writeln(E))),
     halt.
 
+run_query :-
+    Query = (${cleanedQuery}),
+    copy_term(Query, Copy, Bindings),
+    call(Copy),
+    print_bindings(Bindings),
+    fail.
+run_query.
+
 print_bindings([]).
-print_bindings([Var|Rest]) :-
-    write_term(Var, [quoted(true)]), write(' = '),
-    write_term(Var, [quoted(true)]),
+print_bindings([Name=Value|Rest]) :-
+    format("~w = ~w", [Name, Value]),
     (Rest \= [] -> write(', ') ; true),
     nl,
     print_bindings(Rest).
