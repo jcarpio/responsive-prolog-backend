@@ -28,17 +28,21 @@ const wrappedCode = `
 
 ${facts}
 
-print_vars(Query) :-
-    copy_term(Query, Copy),
-    call(Copy),
-    numbervars(Copy, 0, _),
-    write_term(Copy, [quoted(true)]),
-    nl,
-    fail.
-print_vars(_).
+main :-
+    ( ${cleanedQuery} ->
+        term_variables(${cleanedQuery}, Vars),
+        print_bindings(Vars)
+    ; writeln(false)
+    ),
+    halt.
 
-main :- catch(print_vars(${cleanedQuery}), E, (writeln(E))).
-:- main, halt.
+print_bindings([]).
+print_bindings([Var|Rest]) :-
+    write_term(Var, [quoted(true)]), write(' = '),
+    write_term(Var, [quoted(true)]),
+    (Rest \= [] -> write(', ') ; true),
+    nl,
+    print_bindings(Rest).
 `;
 
   const filePath = path.join('/tmp', `query_${Date.now()}.pl`);
