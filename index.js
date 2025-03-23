@@ -38,8 +38,14 @@ main :- catch( ( ${cleanQuery(query)}, writeln(${detectMainVar(query)}), fail ),
   const filePath = path.join('/tmp', `query_${Date.now()}.pl`);
   fs.writeFileSync(filePath, wrappedCode);
 
-  exec(`swipl -q -f ${filePath}`, { timeout: 5000 }, (err, stdout, stderr) => {
+  exec(`swipl -q -f ${filePath}`, { timeout: 15000 }, (err, stdout, stderr) => {
     fs.unlinkSync(filePath);
+
+    const goalFailedPattern = /Goal \(directive\) failed: user:\(main,halt\)/;
+
+    if (goalFailedPattern.test(stderr)) {
+      return res.json({ output: "false." });
+    }
 
     if (err && !stdout.trim()) {
       return res.status(500).json({ error: stderr || err.message });
