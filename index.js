@@ -20,6 +20,26 @@ function detectAllVars(query) {
   return matches ? [...new Set(matches)] : ['true']; // Elimina duplicados y usa 'true' si no hay variables
 }
 
+// Nueva función para formatear la salida al estilo de SWI-Prolog
+function formatPrologOutput(stdout, vars) {
+  // Si la salida es 'false', devolver 'false.'
+  if (stdout.trim() === 'false') return 'false.';
+
+  // Divide la salida en líneas
+  const lines = stdout.trim().split('\n');
+
+  // Formatea cada línea para que coincida con el formato de SWI-Prolog
+  const formattedLines = lines.map(line => {
+    // Divide la línea en valores separados por comas
+    const values = line.split(',').map(val => val.trim());
+
+    // Combina variables con sus valores
+    return vars.map((v, index) => `${v}=${values[index]}`).join('\n');
+  });
+
+  return formattedLines.join('\n');
+}
+
 app.post('/run', (req, res) => {
   const { facts = '', query } = req.body;
 
@@ -27,7 +47,8 @@ app.post('/run', (req, res) => {
     return res.status(400).json({ error: 'No Prolog query provided' });
   }
 
-  const vars = detectAllVars(query).join(', '); // Lista de variables separadas por coma
+  const vars = detectAllVars(query); // Lista de variables
+  const varsStr = vars.join(', '); // Variables para el formato de salida
 
   const wrappedCode = `
 :- use_module(library(clpfd)).
@@ -36,15 +57,10 @@ ${facts}
 
 main :- 
     ( ${cleanQuery(query)} -> 
-        findall((${vars}), ${cleanQuery(query)}, Results),
-        (Results == [] -> writeln(false) ; print_results(Results))
+        forall(${cleanQuery(query)}, (writeln((${varsStr}))))
     ; 
         writeln(false)
     ).
-
-print_results([]).
-print_results([H|T]) :- writeln(H), print_results(T).
-
 :- main, halt.
 `;
 
@@ -58,7 +74,10 @@ print_results([H|T]) :- writeln(H), print_results(T).
       return res.status(500).json({ error: stderr || err.message });
     }
 
-    return res.json({ output: stdout.trim() || "false." });
+    // Formatear la salida
+    const formattedOutput = formatPrologOutput(stdout, vars);
+
+    return res.json({ output: formattedOutput });
   });
 });
 
@@ -67,5 +86,5 @@ app.get('/', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`Servidor corriendo en puerto ${PORT}`);
 });
