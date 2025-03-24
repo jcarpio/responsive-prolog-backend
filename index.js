@@ -16,28 +16,8 @@ function cleanQuery(q) {
 
 // Extrae todas las variables de una consulta Prolog
 function detectAllVars(query) {
-  const matches = query.match(/\b([A-Z_][A-Za-z0-9_]*)\b/g);
+  const matches = query.match(/\b([A-Z][A-Za-z0-9_]*)\b/g);
   return matches ? [...new Set(matches)] : ['true']; // Elimina duplicados y usa 'true' si no hay variables
-}
-
-// Nueva función para formatear la salida al estilo de SWI-Prolog
-function formatPrologOutput(stdout, vars) {
-  // Si la salida es 'false', devolver 'false.'
-  if (stdout.trim() === 'false') return 'false.';
-
-  // Divide la salida en líneas
-  const lines = stdout.trim().split('\n');
-
-  // Formatea cada línea para que coincida con el formato de SWI-Prolog
-  const formattedLines = lines.map(line => {
-    // Divide la línea en valores separados por comas
-    const values = line.split(',').map(val => val.trim());
-
-    // Combina variables con sus valores
-    return vars.map((v, index) => `${v}=${values[index]}`).join('\n');
-  });
-
-  return formattedLines.join('\n');
 }
 
 app.post('/run', (req, res) => {
@@ -47,20 +27,25 @@ app.post('/run', (req, res) => {
     return res.status(400).json({ error: 'No Prolog query provided' });
   }
 
-  const vars = detectAllVars(query); // Lista de variables
-  const varsStr = vars.join(', '); // Variables para el formato de salida
+  const vars = detectAllVars(query);
+  const cleanQueryStr = cleanQuery(query);
 
   const wrappedCode = `
 :- use_module(library(clpfd)).
 
 ${facts}
 
-main :- 
-    ( ${cleanQuery(query)} -> 
-        forall(${cleanQuery(query)}, (writeln((${varsStr}))))
-    ; 
+main :-
+    (${cleanQueryStr} ->
+        findall((${vars.join(',')}), (${cleanQueryStr}), Solutions),
+        (Solutions \= [] ->
+            maplist(writeln, Solutions)
+        ;
+            writeln(false))
+    ;
         writeln(false)
     ).
+
 :- main, halt.
 `;
 
@@ -74,10 +59,8 @@ main :-
       return res.status(500).json({ error: stderr || err.message });
     }
 
-    // Formatear la salida
-    const formattedOutput = formatPrologOutput(stdout, vars);
-
-    return res.json({ output: formattedOutput });
+    const output = stdout.trim() === 'false' ? 'false.' : stdout.trim();
+    return res.json({ output });
   });
 });
 
