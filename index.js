@@ -37,11 +37,8 @@ ${facts}
 
 main :-
     (${cleanQueryStr} ->
-        findall((${vars.join(',')}), (${cleanQueryStr}), Solutions),
-        (Solutions \= [] ->
-            maplist(writeln, Solutions)
-        ;
-            writeln(false))
+        writeln('true'),
+        writeln((${vars.join(', ')}))
     ;
         writeln(false)
     ).
@@ -59,7 +56,14 @@ main :-
       return res.status(500).json({ error: stderr || err.message });
     }
 
-    const output = stdout.trim() === 'false' ? 'false.' : stdout.trim();
+    // Procesar la salida para que coincida con el formato deseado
+    const lines = stdout.trim().split('\n');
+    let output = 'false.';
+    
+    if (lines[0] === 'true') {
+      output = lines.slice(1).join('\n');
+    }
+
     return res.json({ output });
   });
 });
