@@ -14,9 +14,10 @@ function cleanQuery(q) {
   return q.trim().replace(/\.$/, '');
 }
 
-function detectMainVar(code) {
-  const match = code.match(/\b([A-Z_][A-Za-z0-9_]*)\b/);
-  return match ? match[1] : 'true'; // Default para writeln
+// Extrae todas las variables de una consulta Prolog
+function detectAllVars(query) {
+  const matches = query.match(/\b([A-Z_][A-Za-z0-9_]*)\b/g);
+  return matches ? [...new Set(matches)] : ['true']; // Elimina duplicados y usa 'true' si no hay variables
 }
 
 app.post('/run', (req, res) => {
@@ -26,12 +27,19 @@ app.post('/run', (req, res) => {
     return res.status(400).json({ error: 'No Prolog query provided' });
   }
 
+  const vars = detectAllVars(query).join(', '); // Lista de variables separadas por coma
+
   const wrappedCode = `
 :- use_module(library(clpfd)).
 
 ${facts}
 
-main :- catch( ( ${cleanQuery(query)}, writeln(${detectMainVar(query)}), fail ), E, (writeln(E)) ).
+main :- 
+    ( ${cleanQuery(query)} -> 
+        forall(${cleanQuery(query)}, (writeln((${vars}))))
+    ; 
+        writeln(false)
+    ).
 :- main, halt.
 `;
 
@@ -45,11 +53,7 @@ main :- catch( ( ${cleanQuery(query)}, writeln(${detectMainVar(query)}), fail ),
       return res.status(500).json({ error: stderr || err.message });
     }
 
-    if (!stdout.trim()) {
-      return res.json({ output: "⚠️ La consulta no produjo ningún resultado." });
-    }
-
-    return res.json({ output: stdout });
+    return res.json({ output: stdout.trim() || "false." });
   });
 });
 
