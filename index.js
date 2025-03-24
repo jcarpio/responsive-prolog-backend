@@ -14,10 +14,10 @@ function cleanQuery(q) {
   return q.trim().replace(/\.$/, '');
 }
 
-// Extrae todas las variables de una consulta Prolog
+// Extrae todas las variables únicas de una consulta Prolog
 function detectAllVars(query) {
   const matches = query.match(/\b([A-Z_][A-Za-z0-9_]*)\b/g);
-  return matches ? [...new Set(matches)] : ['true']; // Elimina duplicados y usa 'true' si no hay variables
+  return matches ? [...new Set(matches)] : []; // Elimina duplicados y devuelve solo variables
 }
 
 app.post('/run', (req, res) => {
@@ -27,7 +27,7 @@ app.post('/run', (req, res) => {
     return res.status(400).json({ error: 'No Prolog query provided' });
   }
 
-  const vars = detectAllVars(query).join(', '); // Lista de variables separadas por coma
+  const vars = detectAllVars(query);
 
   const wrappedCode = `
 :- use_module(library(clpfd)).
@@ -36,7 +36,7 @@ ${facts}
 
 main :- 
     ( ${cleanQuery(query)} -> 
-        forall(${cleanQuery(query)}, (writeln((${vars}))))
+        forall(${cleanQuery(query)}, (format("${vars.map(v => `${v} = ~w`).join(', ')}\\n", [${vars.join(', ')}])))
     ; 
         writeln(false)
     ).
