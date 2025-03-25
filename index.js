@@ -22,14 +22,14 @@ function detectAllVars(query) {
 
 app.post('/run', (req, res) => {
   const { facts = '', query } = req.body;
-  
+
   if (!query) {
     return res.status(400).json({ error: 'No Prolog query provided' });
   }
-  
+
   const vars = detectAllVars(query);
   const cleanQueryStr = cleanQuery(query);
-  
+
   const wrappedCode = `
 :- use_module(library(clpfd)).
 
@@ -45,26 +45,25 @@ main :-
 
 :- main, halt.
 `;
-  
+
   const filePath = path.join('/tmp', `query_${Date.now()}.pl`);
   fs.writeFileSync(filePath, wrappedCode);
-  
+
   exec(`swipl -q -f ${filePath}`, { timeout: 5000 }, (err, stdout, stderr) => {
     fs.unlinkSync(filePath);
-    
+
     if (err && !stdout.trim()) {
       return res.status(500).json({ error: stderr || err.message });
     }
-    
+
     // Procesar la salida para que coincida con el formato deseado
     const lines = stdout.trim().split('\n');
     let output = 'false.';
     
     if (lines[0] === 'true') {
-      // Formatear cada valor con su variable correspondiente
-      output = vars.map((variable, index) => `${variable}=${lines[1].split(',')[index].trim()}`).join('\n');
+      output = lines.slice(1).join('\n');
     }
-    
+
     return res.json({ output });
   });
 });
